@@ -6,12 +6,14 @@ using Test
 using SearchModels
 
 struct PolyModelSpace <: AbstractConfigSpace
-    degree::Vector{Int}
+    degree
 end
 
 struct PolyModel{T<:AbstractVector} <: AbstractConfig
     coeff::T
 end
+
+Base.eltype(::PolyModelSpace) = PolyModel
 
 SearchModels.config_type(c::PolyModel) = length(c.coeff)  # polynomial degree
 
@@ -56,7 +58,7 @@ end
         s / length(X)
     end
 
-    space = PolyModelSpace([3, 4, 5, 6])
+    space = PolyModelSpace(2:5)
     B = search_models(space, error_function, 300,
         bsize=64,
         mutbsize=32,

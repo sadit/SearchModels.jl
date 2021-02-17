@@ -5,12 +5,13 @@ module SearchModels
 
 export AbstractConfigSpace, AbstractConfig, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
 using Distributed, Random, StatsBase
+
 abstract type AbstractConfigSpace end
 abstract type AbstractConfig end
 
-
 Base.hash(a::AbstractConfig) = hash(repr(a))
 Base.isequal(a::AbstractConfig, b::AbstractConfig) = isequal(repr(a), repr(b))
+# Base.eltype(::AbstractConfigSpace) = AbstractConfig
 
 """
     scale(x, s=1.1; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T))
@@ -40,6 +41,11 @@ function translate(x::T, s=2; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T))
     end
 end
 
+"""
+    config_type(::T)
+
+Config type identifier, it may or not be a type
+"""
 config_type(::T) where T = Base.typename(T)
 
 #function random_configuration(space::AbstractConfigSpace) end
@@ -85,11 +91,20 @@ end
 
 """
     mutate_configuration(space::AbstractConfigSpace, config, iter::Integer)
+    mutate_configuration(space::AbstractVector, c, iter)
 
-Mutates configuration
+Mutates configuration. If space is a list of spaces, then the proper space is determined.
 """
 function mutate_configuration(space::AbstractConfigSpace, c, iter)
     combine_configurations(c, random_configuration(space))
+end
+
+function mutate_configuration(space::AbstractVector, c, iter)
+    for s in space
+        if c isa eltype(s)
+            return mutate_configuration(s, c, iter)
+        end
+    end
 end
 
 
