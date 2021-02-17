@@ -203,9 +203,10 @@ function search_models(
         parallel=:none # :none, :threads, :distributed
     )
     
-    population = Pair{AbstractConfig,Float64}[]
-    evalqueue = AbstractConfig[]
-    observed = Set{AbstractConfig}()
+    ConfigType = eltype(space)
+    population = Pair{ConfigType,Float64}[]
+    evalqueue = ConfigType[]
+    observed = Set{ConfigType}()
 
     for i in 1:initialpopulation
         push_config!(accept_config, random_configuration(space), evalqueue, observed)

@@ -9,24 +9,21 @@ struct PolyModelSpace <: AbstractConfigSpace
     degree
 end
 
-struct PolyModel{T<:AbstractVector} <: AbstractConfig
-    coeff::T
-end
+const PolyModel = Vector{Float64}
 
 Base.eltype(::PolyModelSpace) = PolyModel
-
-SearchModels.config_type(c::PolyModel) = length(c.coeff)  # polynomial degree
+SearchModels.config_type(c::PolyModel) = length(c)  # polynomial degree
 
 function SearchModels.random_configuration(space::PolyModelSpace)
-    PolyModel(rand(rand(space.degree) + 1))
+    rand(rand(space.degree) + 1)
 end
 
 function SearchModels.combine_configurations(a::PolyModel, b::PolyModel)
-    PolyModel([(a.coeff[i] + b.coeff[i]) / 2.0 for i in eachindex(a.coeff)])
+    PolyModel([(a[i] + b[i]) / 2.0 for i in eachindex(a)])
 end
 
 function SearchModels.mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
-    PolyModel([SearchModels.scale(c.coeff[i]) for i in eachindex(c.coeff)])
+    PolyModel([SearchModels.scale(c[i]) for i in eachindex(c)])
 end
 
 function poly(coeff, x)::Float64
@@ -51,7 +48,7 @@ end
     function error_function(c)::Float64
         s = zero(Float64)
         @inbounds @simd for i in eachindex(X)
-            m = poly(c.coeff, X[i]) - y[i]
+            m = poly(c, X[i]) - y[i]
             s += m * m
         end
 
