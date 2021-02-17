@@ -14,28 +14,28 @@ Base.isequal(a::AbstractConfig, b::AbstractConfig) = isequal(repr(a), repr(b))
 # Base.eltype(::AbstractConfigSpace) = AbstractConfig
 
 """
-    scale(x, s=1.1; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T))
+    scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))
 
 With probability `p1` ``x``` is scaled by `s`; if ``x`` is going to be scaled, then with probability `p2` ``x`` is growth (or reduced otherwise).
 Minimum and maximum values can be specified.
 """
-function scale(x::T, s=1.1; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T)) where {T<:Real}
+function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
     if rand() < p1
-        min(top, max(bottom, rand() < p2 ? x * s : x / s))
+        min(upper, max(lower, rand() < p2 ? x * s : x / s))
     else
         x
     end
 end
 
 """
-    translate(x::T, s=2; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T)) where {T<:Real}
+    translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
 
 With probability `p1` ``x``` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
 Minimum and maximum values can be specified.
 """
-function translate(x::T, s=2; p1=0.5, p2=0.5, bottom=typemin(T), top=typemax(T)) where {T<:Real}
+function translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
     if rand() < p1
-        min(top, max(bottom, rand() < p2 ? x + s : x - s))
+        min(upper, max(lower, rand() < p2 ? x + s : x - s))
     else
         x
     end

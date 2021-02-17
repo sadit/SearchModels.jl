@@ -4,6 +4,7 @@
 using Test
 
 using SearchModels
+import SearchModels: random_configuration, combine_configurations, mutate_configuration, config_type
 
 struct PolyModelSpace <: AbstractConfigSpace
     degree
@@ -12,18 +13,18 @@ end
 const PolyModel = Vector{Float64}
 
 Base.eltype(::PolyModelSpace) = PolyModel
-SearchModels.config_type(c::PolyModel) = length(c)  # polynomial degree
+config_type(c::PolyModel) = length(c)  # polynomial degree
 
-function SearchModels.random_configuration(space::PolyModelSpace)
+function random_configuration(space::PolyModelSpace)
     rand(rand(space.degree) + 1)
 end
 
-function SearchModels.combine_configurations(a::PolyModel, b::PolyModel)
-    PolyModel([(a[i] + b[i]) / 2.0 for i in eachindex(a)])
+function combine_configurations(a::PolyModel, b::PolyModel)
+    [(a[i] + b[i]) / 2.0 for i in eachindex(a)]
 end
 
-function SearchModels.mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
-    PolyModel([SearchModels.scale(c[i]) for i in eachindex(c)])
+function mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
+    [SearchModels.scale(c[i]) for i in eachindex(c)]
 end
 
 function poly(coeff, x)::Float64
