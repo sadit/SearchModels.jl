@@ -8,9 +8,34 @@ using Distributed, Random, StatsBase
 abstract type AbstractConfigSpace end
 abstract type AbstractConfig end
 
+
 Base.hash(a::AbstractConfig) = hash(repr(a))
 Base.isequal(a::AbstractConfig, b::AbstractConfig) = isequal(repr(a), repr(b))
-#function Base.eltype(space) => kind of configuration
+
+"""
+    scale(x, s=1.1; p1=0.5, p2=0.5, bottom=-Inf, top=Inf)
+
+With probability `p1` ``x``` is scaled by `s`; if ``x`` is going to be scaled, then with probability `p2` ``x`` is growth (or reduced otherwise).
+Minimum and maximum values can be specified.
+"""
+scale(x, s=1.1; p1=0.5, p2=0.5, bottom=-Inf, top=Inf) = if rand() < p1
+    min(top, max(bottom, rand() < p2 ? x * s : x / s))
+else
+    x
+end
+
+"""
+    translate(x, s=2; p1=0.5, p2=0.5, bottom=-Inf, top=Inf)
+
+With probability `p1` ``x``` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
+Minimum and maximum values can be specified.
+"""
+translate(x, s=2; p1=0.5, p2=0.5, bottom=-Inf, top=Inf) = if rand() < p1
+    min(top, max(bottom, rand() < p2 ? x + s : x - s))
+else
+    x
+end
+
 config_type(::T) where T = Base.typename(T)
 
 #function random_configuration(space::AbstractConfigSpace) end

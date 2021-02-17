@@ -13,7 +13,6 @@ struct PolyModel{T<:AbstractVector} <: AbstractConfig
     coeff::T
 end
 
-Base.eltype(::PolyModelSpace) = PolyModel
 SearchModels.config_type(c::PolyModel) = length(c.coeff)  # polynomial degree
 
 function SearchModels.random_configuration(space::PolyModelSpace)
@@ -25,13 +24,7 @@ function SearchModels.combine_configurations(a::PolyModel, b::PolyModel)
 end
 
 function SearchModels.mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
-    pert(x) = if rand() < 0.3
-        rand() < 0.5 ? x * 1.1 : x / 1.1
-    else
-        x
-    end
-
-    PolyModel([pert(c.coeff[i]) for i in eachindex(c.coeff)])
+    PolyModel([SearchModels.scale(c.coeff[i]) for i in eachindex(c.coeff)])
 end
 
 function poly(coeff, x)::Float64
