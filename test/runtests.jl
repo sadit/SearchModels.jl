@@ -1,15 +1,20 @@
-using SearchModels
+# This file is a part of SearchModels.jl
+# License is Apache 2.0: https://www.apache.org/licenses/LICENSE-2.0.txt
+
 using Test
+
+using SearchModels
 
 struct PolyModelSpace <: AbstractConfigSpace
     degree::Vector{Int}
 end
 
-struct PolyModel <: AbstractConfig
-    coeff::Vector{Float64}
+struct PolyModel{T<:AbstractVector} <: AbstractConfig
+    coeff::T
 end
 
 Base.eltype(::PolyModelSpace) = PolyModel
+SearchModels.config_type(c::PolyModel) = length(c.coeff)  # polynomial degree
 
 function SearchModels.random_configuration(space::PolyModelSpace)
     PolyModel(rand(rand(space.degree) + 1))
@@ -19,9 +24,14 @@ function SearchModels.combine_configurations(a::PolyModel, b::PolyModel)
     PolyModel([(a.coeff[i] + b.coeff[i]) / 2.0 for i in eachindex(a.coeff)])
 end
 
-function SearchModels.combine_configurations(a::PolyModel, L::AbstractVector)
-    i = findfirst(p -> length(p.first.coeff) == length(a.coeff), L)
-    combine_configurations(a, L[i].first)
+function SearchModels.mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
+    pert(x) = if rand() < 0.3
+        rand() < 0.5 ? x * 1.1 : x / 1.1
+    else
+        x
+    end
+
+    PolyModel([pert(c.coeff[i]) for i in eachindex(c.coeff)])
 end
 
 function poly(coeff, x)::Float64
@@ -53,15 +63,14 @@ end
         s / length(X)
     end
 
-    space = PolyModelSpace([3,4,5,6])
-    B = search_models(space, error_function, 1000,
-        bsize=32,
+    space = PolyModelSpace([3, 4, 5, 6])
+    B = search_models(space, error_function, 300,
+        bsize=64,
         mutbsize=32,
         crossbsize=32,
         tol=0.0,
         maxiters=300,
-        verbose=true,
-        distributed=false
+        verbose=true
     )
 
     println("===== PolyModel -- poly: $(coeff__)")
