@@ -53,12 +53,12 @@ end
         s / length(X)
     end
 
-    space = PolyModelSpace([1,2,3,4])
+    space = PolyModelSpace([3,4,5,6])
     B = search_models(space, error_function, 1000,
-        bsize=16,
-        mutbsize=16,
-        crossbsize=16,
-        tol=-1.0,
+        bsize=32,
+        mutbsize=32,
+        crossbsize=32,
+        tol=0.0,
         maxiters=300,
         verbose=true,
         distributed=false
@@ -66,6 +66,6 @@ end
 
     println("===== PolyModel -- poly: $(coeff__)")
     for (i, p) in enumerate(B[1:15])
-        @info i p
+        println(stderr, i => p)
     end
 end

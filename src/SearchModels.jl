@@ -33,6 +33,35 @@ function combine_configurations(a::T, L::AbstractVector) where T
     a
 end
 
+function evaluate_queue(error_function, evalqueue, population, config_and_scores, distributed)
+    while length(evalqueue) > 0
+        c = pop!(evalqueue)
+        perf = if distributed
+            @spawn error_function(c)
+        else
+            error_function(c)
+        end
+
+        push!(config_and_scores, c => perf)
+    end
+    
+    # fetching all results
+    for s in config_and_scores
+        push!(population, s.first => fetch(s.second))
+    end
+
+    ## verbose && println(stderr, "SearchModels> *** iteration $iter finished")
+
+    sort!(population, by=x->x.second)
+end
+
+function push_config!(conf, evalqueue, observed)
+    if !(conf in observed)
+        push!(evalqueue, conf)
+        push!(observed, conf)
+    end
+end
+
 function search_models(
         configspace::AbstractConfigSpace,
         error_function::Function,  # receives only the configuration to be population
@@ -52,50 +81,27 @@ function search_models(
     observed = Set{AbstractConfig}()
 
     for i in 1:initialpopulation
-        c = random_configuration(configspace)
-        if !(c in observed)
-            push!(evalqueue, c)
-            push!(observed, c)
-        end
+        push_config!(random_configuration(configspace), evalqueue, observed)
     end
     
     prev = 0.0
     iter = 0
     config_and_scores = Pair[]
+    verbose && println(stderr, "SearchModels> ==== search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$maxpopulation, bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
 
     while iter <= maxiters
         iter += 1
 
-        verbose && println(stderr, "SearchModels> ==== search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$maxpopulation, bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize, prev=$prev")
         empty!(config_and_scores)
-        while length(evalqueue) > 0
-            c = pop!(evalqueue)
-            perf = if distributed
-                @spawn error_function(c)
-            else
-                error_function(c)
-            end
-
-            push!(config_and_scores, c => perf)
-        end
-        
-        # fetching all results
-        for s in config_and_scores
-            push!(population, s.first => fetch(s.second))
-        end
-
-        ## verbose && println(stderr, "SearchModels> *** iteration $iter finished")
-
-        sort!(population, by=x->x.second)
+        evaluate_queue(error_function, evalqueue, population, config_and_scores, distributed)
         if maxpopulation < length(population)
             resize!(population, maxpopulation)
         end
 
         iter >= maxiters && return population
 
-        curr = population[1].second
-        if abs(curr - prev) <= tol     
-            verbose && println(stderr, "SearchModels> *** stopping on iteration $iter due to a possible convergence ($curr ≃ $prev, tol: $tol)")
+        curr = population[end].second
+        if abs(curr - prev) <= tol
             return population
         end
 
@@ -105,25 +111,19 @@ function search_models(
         L = @view population[1:min(bsize, length(population))]
         for i in 1:mutbsize
             c = rand(L)
-            conf = combine_configurations(c.first, [random_configuration(configspace) => 0.0, c])
-            if !(conf in observed)
-                push!(evalqueue, conf)
-                push!(observed, conf)
-            end
+            conf = combine_configurations(c.first, [random_configuration(configspace) => Inf, c])
+            push_config!(conf, evalqueue, observed)
         end
 
         for i in 1:crossbsize
             shuffle!(L) # the way this procedure is designed is to support heterogeneous options
             i = rand(1:length(L))
-            L[end], L[i] = L[end], L[i]  
+            L[end], L[i] = L[end], L[i]
             conf = combine_configurations(L[end].first, L)
-            if !(conf in observed)
-                push!(evalqueue, conf)
-                push!(observed, conf)
-            end
+            push_config!(conf, evalqueue, observed)
         end
 
-        verbose && println(stderr, "SearchModels> *** configurations population=$(length(population)), queue=$(length(evalqueue)), observed=$(length(observed))")    
+        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), queue: $(length(evalqueue)), observed: $(length(observed)), curr: $curr")
     end
 
     sort!(population, by=x->x.second)
