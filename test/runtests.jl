@@ -16,7 +16,7 @@ Base.eltype(::PolyModelSpace) = PolyModel
 config_type(c::PolyModel) = length(c)  # polynomial degree
 
 function random_configuration(space::PolyModelSpace)
-    rand(rand(space.degree) + 1)
+    randn(rand(space.degree) + 1)
 end
 
 function combine_configurations(a::PolyModel, b::PolyModel)
@@ -24,7 +24,8 @@ function combine_configurations(a::PolyModel, b::PolyModel)
 end
 
 function mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
-    [SearchModels.scale(c[i]) for i in eachindex(c)]
+    step = 1.0 + 1 / (1 + iter)
+    [SearchModels.scale(c[i], step) for i in eachindex(c)]
 end
 
 function poly(coeff, x)::Float64
@@ -62,7 +63,7 @@ end
         mutbsize=32,
         crossbsize=32,
         tol=0.0,
-        maxiters=300,
+        maxiters=100,
         verbose=true
     )
 

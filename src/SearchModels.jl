@@ -3,15 +3,10 @@
 
 module SearchModels
 
-export AbstractConfigSpace, AbstractConfig, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
+export AbstractConfigSpace, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
 using Distributed, Random, StatsBase
 
 abstract type AbstractConfigSpace end
-abstract type AbstractConfig end
-
-Base.hash(a::AbstractConfig) = hash(repr(a))
-Base.isequal(a::AbstractConfig, b::AbstractConfig) = isequal(repr(a), repr(b))
-# Base.eltype(::AbstractConfigSpace) = AbstractConfig
 
 """
     scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))
@@ -49,7 +44,7 @@ Config type identifier, it may or not be a type
 config_type(::T) where T = Base.typename(T)
 
 #function random_configuration(space::AbstractConfigSpace) end
-#function combine_configurations(a::AbstractConfig, b::AbstractConfig) end
+#function combine_configurations(a, b) end
 
 """
     random_configuration(space::AbstractConfigSpace)
@@ -59,7 +54,7 @@ Creates a random configuration sampling the given space
 function random_configuration end
 
 """
-    combine_configurations(c1::AbstractConfig, c2::AbstractConfig)
+    combine_configurations(c1, c2)
 
 Combines two configurations into a single one.
 
@@ -67,11 +62,11 @@ Combines two configurations into a single one.
 function combine_configurations end
 
 """
-    combine_configurations(a::AbstractConfig, L::AbstractVector)
+    combine_configurations(a, L::AbstractVector)
 
 Combines the first configuration (1st argument) with some of the given list of pairs (config => score),
 The `a` config is always at the end of `L` and also `L` is always shuffled.
-If you are in doubt, use the higher level interface `combine_configurations(c1::AbstractConfig, c2::AbstractConfig)`.
+If you are in doubt, use the higher level interface `combine_configurations(c1, c2)`.
 """
 function combine_configurations(a::T, L::AbstractVector) where T
     # L is a vector of pairs config => score
