@@ -3,10 +3,10 @@
 
 module SearchModels
 
-export AbstractConfigSpace, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
+export AbstractSolutionSpace, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
 using Distributed, Random, StatsBase
 
-abstract type AbstractConfigSpace end
+abstract type AbstractSolutionSpace end
 
 """
     scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))
@@ -14,7 +14,7 @@ abstract type AbstractConfigSpace end
 With probability `p1` ``x``` is scaled by `s`; if ``x`` is going to be scaled, then with probability `p2` ``x`` is growth (or reduced otherwise).
 Minimum and maximum values can be specified.
 """
-function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
+function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}
     if rand() < p1
         min(upper, max(lower, rand() < p2 ? x * s : x / s))
     else
@@ -28,7 +28,7 @@ end
 With probability `p1` ``x``` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
 Minimum and maximum values can be specified.
 """
-function translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
+function translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}
     if rand() < p1
         min(upper, max(lower, rand() < p2 ? x + s : x - s))
     else
@@ -43,11 +43,11 @@ Config type identifier, it may or not be a type
 """
 config_type(::T) where T = Base.typename(T)
 
-#function random_configuration(space::AbstractConfigSpace) end
+#function random_configuration(space::AbstractSolutionSpace) end
 #function combine_configurations(a, b) end
 
 """
-    random_configuration(space::AbstractConfigSpace)
+    random_configuration(space::AbstractSolutionSpace)
 
 Creates a random configuration sampling the given space
 """
@@ -85,12 +85,12 @@ end
 
 
 """
-    mutate_configuration(space::AbstractConfigSpace, config, iter::Integer)
+    mutate_configuration(space::AbstractSolutionSpace, config, iter::Integer)
     mutate_configuration(space::AbstractVector, c, iter)
 
 Mutates configuration. If space is a list of spaces, then the proper space is determined.
 """
-function mutate_configuration(space::AbstractConfigSpace, c, iter)
+function mutate_configuration(space::AbstractSolutionSpace, c, iter)
     combine_configurations(c, random_configuration(space))
 end
 
@@ -150,11 +150,12 @@ end
 
 """
     search_models(
-        space::AbstractConfigSpace,
+        space::AbstractSolutionSpace,
         error_function::Function,  # receives only the configuration to be population
         initialpopulation=32;
         maxpopulation=initialpopulation,
         accept_config::Function=config->true,
+        inspect_population::Function=(space, population) -> nothing,
         bsize=initialpopulation,
         mutbsize=4,
         crossbsize=4,
@@ -172,6 +173,7 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
 - `initialpopulation`: initial number of configurations to conform the population
 - `maxpopulation`: the maximum number of configurations to be kept at each iteration (based on its minimum error)
 - `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
+- `inspect_population`: observes the population after evaluating a beam of solutions
 - `bsize`: number of best items to be used for mutation and crossing procedures
 - `mutbsize`: number of new configurations per iteration from a mutation procedure
 - `crossbsize`: number of new configurations per iteration from a crossing procedure
@@ -184,11 +186,12 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
   - `:distributed`: evaluates error functions using a distributed environment (using the available workers)
 """
 function search_models(
-        space::AbstractConfigSpace,
+        space::AbstractSolutionSpace,
         error_function::Function,  # receives only the configuration to be population
         initialpopulation=32;
         maxpopulation=initialpopulation,
-        accept_config::Function=config->true,
+        accept_config::Function=config -> true,
+        inspect_population::Function=(space, population) -> nothing,
         bsize=initialpopulation,
         mutbsize=16,
         crossbsize=16,
@@ -210,7 +213,7 @@ function search_models(
     prev = 0.0
     iter = 0
     config_and_errors = Pair[]
-    verbose && println(stderr, "SearchModels> ==== search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$maxpopulation, bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
+    verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$maxpopulation, bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
 
     while iter <= maxiters
         iter += 1
@@ -220,10 +223,15 @@ function search_models(
             resize!(population, maxpopulation)
         end
 
-        iter >= maxiters && return population
+        inspect_population(space, population)
+        if iter >= maxiters
+            verbose && println("SearchModels> reached maximum number of iterations $maxiters")
+            return population
+        end
 
         curr = population[end].second
         if abs(curr - prev) <= tol
+            verbose && println("SearchModels> stop by convergence error=$curr, tol=$tol")
             return population
         end
 
