@@ -9,14 +9,23 @@ using Distributed, Random, StatsBase
 abstract type AbstractSolutionSpace end
 
 """
-    scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))
+    scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T
 
 With probability `p1` ``x``` is scaled by `s`; if ``x`` is going to be scaled, then with probability `p2` ``x`` is growth (or reduced otherwise).
 Minimum and maximum values can be specified.
 """
-function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}
+function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:AbstractFloat}
     if rand() < p1
         min(upper, max(lower, rand() < p2 ? x * s : x / s))
+    else
+        x
+    end
+end
+
+function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Integer}
+    if rand() < p1
+        x = min(upper, max(lower, rand() < p2 ? x * s : x / s))
+        round(T, x)
     else
         x
     end
