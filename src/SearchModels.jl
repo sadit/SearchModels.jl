@@ -14,7 +14,7 @@ abstract type AbstractSolutionSpace end
 With probability `p1` ``x``` is scaled by `s`; if ``x`` is going to be scaled, then with probability `p2` ``x`` is growth (or reduced otherwise).
 Minimum and maximum values can be specified.
 """
-function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:AbstractFloat}
+function scale(x::T; s=1.1, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:AbstractFloat}
     if rand() < p1
         min(upper, max(lower, rand() < p2 ? x * s : x / s))
     else
@@ -22,22 +22,22 @@ function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)):
     end
 end
 
-function scale(x::T, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Integer}
+function scale(x::T; s=1.1, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Integer}
     if rand() < p1
         x = min(upper, max(lower, rand() < p2 ? x * s : x / s))
-        round(T, x)
+        ceil(T, x)
     else
         x
     end
 end
 
 """
-    translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
+    translate(x::T; s=2, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
 
 With probability `p1` ``x``` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
 Minimum and maximum values can be specified.
 """
-function translate(x::T, s=2; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}
+function translate(x::T; s=2, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}
     if rand() < p1
         min(upper, max(lower, rand() < p2 ? x + s : x - s))
     else
