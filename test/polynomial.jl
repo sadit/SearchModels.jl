@@ -25,7 +25,7 @@ end
 
 function mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
     step = 1.0 + 1 / (1 + iter)
-    [SearchModels.scale(c[i], step) for i in eachindex(c)]
+    [SearchModels.scale(c[i], s=step) for i in eachindex(c)]
 end
 
 function poly(coeff, x)::Float64
