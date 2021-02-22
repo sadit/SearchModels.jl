@@ -4,7 +4,6 @@ using Documenter
 makedocs(;
     modules=[SearchModels],
     authors="Eric S. Tellez",
-    devbranch = "main",
     repo="https://github.com/sadit/SearchModels.jl/blob/{commit}{path}#L{line}",
     sitename="SearchModels.jl",
     format=Documenter.HTML(;
@@ -19,4 +18,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/sadit/SearchModels.jl",
+    devbranch="main"
 )
