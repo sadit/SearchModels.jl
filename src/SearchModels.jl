@@ -35,7 +35,7 @@ end
 """
     translate(x::T; s=2, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)) where {T<:Real}
 
-With probability `p1` ``x``` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
+With probability `p1` ``x`` is modified; if ``x`` is modified, then with probability `p2` returns ``x+s`` or ``x-s`` otherwise.
 Minimum and maximum values can be specified.
 """
 function translate(x::T; s=2, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T where {T<:Real}

@@ -15,7 +15,7 @@ Due to its generic specification, other kind of optimization problems can be als
 ## Installing
 
 ```julia
-] add https://github.com/sadit/SearchModels.jl
+] add SearchModels
 ```
 
 

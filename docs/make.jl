@@ -18,5 +18,7 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/sadit/SearchModels.jl",
-    devbranch="main"
+    devbranch="main",
+    branch = "gh-pages",
+    versions = ["stable" => "v^", "v#.#"]
 )
