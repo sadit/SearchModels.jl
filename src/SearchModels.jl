@@ -7,6 +7,7 @@ export AbstractSolutionSpace, config_type, search_models, random_configuration, 
 using Distributed, Random, StatsBase
 
 abstract type AbstractSolutionSpace end
+## NOTE: all configuratons must define hash, and isequal
 
 """
     scale(x, s=1.1; p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T))::T
@@ -213,7 +214,7 @@ function search_models(
     ConfigType = eltype(space)
     population = Pair{ConfigType,Float64}[]
     evalqueue = ConfigType[]
-    observed = Set{ConfigType}()
+    observed = Set{ConfigType}() # solutions should override hash and isqual functions
 
     for i in 1:initialpopulation
         push_config!(accept_config, random_configuration(space), evalqueue, observed)
@@ -246,7 +247,7 @@ function search_models(
 
         prev = curr
         ## verbose && println(stderr, "SearchModels> *** generating extra indivuals bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
-
+        best_error, worst_error = population[1].second, population[end].second ## the top configurations will be shuffled
         L = @view population[1:min(bsize, length(population))]
         for i in 1:mutbsize
             conf = mutate_configuration(space, rand(L).first, iter)
@@ -261,7 +262,7 @@ function search_models(
             push_config!(accept_config, conf, evalqueue, observed)
         end
 
-        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(population[1].second) worst-error: $(population[end].second)")
+        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
     end
 
     sort!(population, by=x->x.second)
