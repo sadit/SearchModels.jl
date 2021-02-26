@@ -9,8 +9,10 @@ This is a toy example that help us to select and fit a polynomial model for an i
 The approach of `SearchModels` consists on modeling our solution space defining a struct type and three related methods: `random_configuration`, `combine_configuration`, and `mutate_configuration`. We also may need to define `config_type` and `eltype`. In particular, `config_type` needs to be defined here to put the type as the polynomial's degree to be able to distinguish among different degrees. The `eltype` should be defined to use concrete types internally on several queues.
 
 ```@example Poly
-using SearchModels
+using SearchModels, Random
 import SearchModels: random_configuration, combine_configurations, mutate_configuration, config_type
+
+Random.seed!(0) # fixing seed
 
 struct PolyModelSpace <: AbstractSolutionSpace
     degree

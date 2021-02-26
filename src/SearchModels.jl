@@ -142,8 +142,7 @@ function evaluate_queue(error_function::Function, evalqueue, population, config_
         end
     end
     ## verbose && println(stderr, "SearchModels> *** iteration $iter finished")
-
-    sort!(population, by=x->x.second)
+    population
 end
 
 """
@@ -229,11 +228,13 @@ function search_models(
         iter += 1
         empty!(config_and_errors)
         evaluate_queue(error_function, evalqueue, population, config_and_errors, parallel)
+        sort!(population, by=x->x.second)
+        inspect_population(space, population)
+
         if maxpopulation < length(population)
             resize!(population, maxpopulation)
         end
 
-        inspect_population(space, population)
         if iter >= maxiters
             verbose && println("SearchModels> reached maximum number of iterations $maxiters")
             return population
