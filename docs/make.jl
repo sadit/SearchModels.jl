@@ -13,6 +13,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Example" => "example.md",
+        "API" => "api.md"
     ],
 )
 
@@ -20,5 +22,5 @@ deploydocs(;
     repo="github.com/sadit/SearchModels.jl",
     devbranch="main",
     branch = "gh-pages",
-    versions = ["stable" => "v^", "v#.#"]
+    versions = ["stable" => "v^", "v#.#.#"]
 )

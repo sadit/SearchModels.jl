@@ -19,7 +19,7 @@ For this purpose SearchModels expect that some methods to work. As described bel
 
 - All configuration spaces should be an specialization of the abstract type `AbstractSolutionSpace`.
 - `random_configuration(space::AbstractSolutionSpace)`: Creates a random configuration sampling the given space
-- `combine_configurations(a, L::AbstractVector)`: Combines the a solution 'a' with the list of solutions `L` (an array of pairs `solution => error`). By default it samples `L` for a compatible solution with  `a` and calls `combine_configurations(c1, c2)`. A compatible solution is defined to share the same `config_type(a)`.
+- `combine_configurations(a, L::AbstractVector)`: Combines the a solution 'a' with the list of solutions `L` (an array of pairs `solution => error`). By default it samples `L` for a compatible solution with  `a` and calls [`combine_configurations(c1, c2)`](@ref). A compatible solution is defined to share the same `config_type(a)`.
 - `combine_configurations(c1, c2)`: Combines two configurations into a single one; most applications should override this method.
 - `mutate_configuration(space::AbstractSolutionSpace, config, iter::Integer)`: Mutates `config` (a small perturbation, commonly following the `space` description). The `iter` value contains the iteration counter, it could be used to adjust the perturbation level.
 - `mutate_configuration(space::AbstractVector, c, iter)`: Dispatch of the applicable mutation function whenever space defines heterogeneous types.
@@ -30,12 +30,3 @@ For complex enough configurations (solutions) you may need to define specialize 
 
 Most of the work is made in [`search_models`](@ref) function. 
 
-## API
-
-
-```@index
-```
-
-```@autodocs
-Modules = [SearchModels]
-```
