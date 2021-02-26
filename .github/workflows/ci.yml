@@ -1,10 +1,14 @@
 name: CI
 
-branches:
-  only:
-    - main
-    - /^release-.*$/
-    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+on:
+  push:
+    # Sequence of patterns matched against refs/heads
+    branches:    
+      # Push events on main branch
+      - main
+    # Sequence of patterns matched against refs/tags
+    tags:        
+      - v*.*.*
 
 jobs:
   test:
