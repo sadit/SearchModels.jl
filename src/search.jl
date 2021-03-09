@@ -1,7 +1,7 @@
 # This file is a part of SearchModels.jl
 # License is Apache 2.0: https://www.apache.org/licenses/LICENSE-2.0.txt
 
-export AbstractSolutionSpace, config_type, search_models, random_configuration, combine_configurations_select, combine_configurations, mutate_configuration
+export AbstractSolutionSpace, config_type, search_models, rand, combine_select, combine, mutate
 using Distributed, Random, StatsBase
 
 abstract type AbstractSolutionSpace end
@@ -14,16 +14,20 @@ Config type identifier, it may or not be a type
 """
 config_type(::T) where T = Base.typename(T)
 
-#function random_configuration(space::AbstractSolutionSpace) end
-#function combine_configurations(a, b) end
+#function rand(space::AbstractSolutionSpace) end
+#function combine(a, b) end
 
 """
-    random_configuration(space::AbstractSolutionSpace)
+    rand(space::AbstractSolutionSpace)
 
 Creates a random configuration sampling the given space
 """
-function random_configuration end
 
+"""
+    _compatible_space(space::AbstractVector, c)
+
+Selects the compatible space for configuration c
+"""
 function _compatible_space(space::AbstractVector, c)
     for s in space
         if c isa eltype(s)
@@ -39,7 +43,6 @@ function _compatible_config(c, L::AbstractVector)
     t_ = config_type(c)
 
     for p in L
-        @show t_, p
         x = p.first
         if config_type(x) == t_
             return x
@@ -49,42 +52,38 @@ function _compatible_config(c, L::AbstractVector)
     error("uncompatible configuration for $(typeof(c))")
 end
 
-
 """
-    combine_configurations(space::AbstractSolutionSpace, c1, c2)
-    combine_configurations(c1, c2)
+    combine(space::AbstractSolutionSpace, c1, c2)
+    combine(c1, c2)
 
 Combines two configurations into a single configuration. The three argument functions defaults to two argument function.
 
 """
-function combine_configurations end
-combine_configurations(space, c1, c2) = combine_configurations(c1, c2)
+function combine end
 
 """
-    combine_configurations_select(space, a, L::AbstractVector)
+    combine_select(a, L::AbstractVector)
 
 Combines `a` configuration with some compatible configuation in the given list of pairs (config => score),
 The `a` config is always at the end of `L` and also `L` is always shuffled.
-If you are in doubt, use the higher level interface `combine_configurations(space, c1, c2)`.
+If you are in doubt, use the higher level interface `combine(c1, c2)`.
 """
-function combine_configurations_select(space, a::T, L::AbstractVector) where T
+function combine_select(a::T, L::AbstractVector) where T
     # L is a vector of pairs config => score
     # L should be shuffled before combining
-    combine_configurations(_compatible_space(space, a), a, _compatible_config(a, L))
+    combine(a, _compatible_config(a, L))
 end
 
+function mutate end
 """
-    mutate_configuration(space::AbstractSolutionSpace, config, iter::Integer)
-    mutate_configuration(space::AbstractVector, c, iter)
+    mutate(space::AbstractSolutionSpace, c, iter)
+    mutate(space::AbstractVector, c, iter)
 
 Mutates configuration. If space is a list of spaces, then the proper space is determined.
 """
-function mutate_configuration(space::AbstractSolutionSpace, c, iter)
-    combine_configurations(space, c, random_configuration(space))
-end
-
-function mutate_configuration(space, c, iter)
-    mutate_configuration(_compatible_space(space, c), c, iter)
+function mutate(space::AbstractVector, c, iter)
+    @show space, c, iter
+    mutate(_compatible_space(space, c), c, iter)
 end
 
 """
@@ -241,7 +240,7 @@ function search_models(
 
     if initialpopulation isa Integer
         for i in 1:initialpopulation
-            push_config!(accept_config, random_configuration(space), evalqueue, observed)
+            push_config!(accept_config, rand(space), evalqueue, observed)
         end
     else
         for c in initialpopulation
@@ -280,7 +279,7 @@ function search_models(
         best_error, worst_error = population[1].second, population[end].second ## the top configurations will be shuffled
         L = @view population[1:min(params.bsize, length(population))]
         for i in 1:params.mutbsize
-            conf = mutate_configuration(space, rand(L).first, iter)
+            conf = mutate(space, rand(L).first, iter)
             push_config!(accept_config, conf, evalqueue, observed)
         end
 
@@ -288,7 +287,7 @@ function search_models(
             shuffle!(L) # the way this procedure is designed is to support heterogeneous options
             i = rand(1:length(L))
             L[end], L[i] = L[end], L[i]
-            conf = combine_configurations_select(space, L[end].first, L)
+            conf = combine_select(L[end].first, L)
             push_config!(accept_config, conf, evalqueue, observed)
         end
 

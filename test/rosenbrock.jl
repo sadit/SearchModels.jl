@@ -4,7 +4,7 @@
 using Test
 
 using SearchModels
-import SearchModels: random_configuration, combine_configurations, mutate_configuration, config_type
+import SearchModels: combine, mutate, config_type
 
 mutable struct RosenbrockSpace <: AbstractSolutionSpace
     xrange
@@ -17,11 +17,11 @@ const RoseParams = Tuple{Float64, Float64}
 
 Base.eltype(::RosenbrockSpace) = RoseParams
 
-function random_configuration(space::RosenbrockSpace)
+function Base.rand(space::RosenbrockSpace)
     rand(space.xrange), rand(space.yrange)
 end
 
-function combine_configurations(a::RoseParams, b::RoseParams)
+function combine(a::RoseParams, b::RoseParams)
     if rand() < 0.5
         a[1], b[2]
     else
@@ -29,7 +29,7 @@ function combine_configurations(a::RoseParams, b::RoseParams)
     end
 end
 
-function mutate_configuration(space::RosenbrockSpace, c::RoseParams, iter)
+function mutate(space::RosenbrockSpace, c::RoseParams, iter)
     if rand() < 0.5
         c[1], rand(space.yrange)
     else

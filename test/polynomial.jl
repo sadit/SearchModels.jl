@@ -4,7 +4,7 @@
 using Test
 
 using SearchModels
-import SearchModels: random_configuration, combine_configurations, mutate_configuration, config_type
+import SearchModels: combine, mutate, config_type
 
 struct PolyModelSpace <: AbstractSolutionSpace
     degree
@@ -15,15 +15,13 @@ const PolyModel = Vector{Float64}
 Base.eltype(::PolyModelSpace) = PolyModel
 config_type(c::PolyModel) = length(c)  # polynomial degree
 
-function random_configuration(space::PolyModelSpace)
-    randn(rand(space.degree) + 1)
-end
+Base.rand(space::PolyModelSpace) = randn(rand(space.degree) + 1)
 
-function combine_configurations(a::PolyModel, b::PolyModel)
+function combine(a::PolyModel, b::PolyModel)
     [(a[i] + b[i]) / 2.0 for i in eachindex(a)]
 end
 
-function mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
+function mutate(space::PolyModelSpace, c::PolyModel, iter)
     step = 1.0 + 1 / (1 + iter)
     [SearchModels.scale(c[i], s=step) for i in eachindex(c)]
 end
