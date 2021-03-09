@@ -6,11 +6,11 @@ CurrentModule = SearchModels
 
 This is a toy example that help us to select and fit a polynomial model for an input data. You may realize that threre are better ways to solve this example, but here we want to show how to use it succinctly. `SearchModels` is indended on problems without a definition of derivatives, and in particular, on solving model selection for different kinds of structures.
 
-The approach of `SearchModels` consists on modeling our solution space defining a struct type and three related methods: `random_configuration`, `combine_configuration`, and `mutate_configuration`. We also may need to define `config_type` and `eltype`. In particular, `config_type` needs to be defined here to put the type as the polynomial's degree to be able to distinguish among different degrees. The `eltype` should be defined to use concrete types internally on several queues.
+The approach of `SearchModels` consists on modeling our solution space defining a struct type and three related methods: `rand`, `combine`, and `mutate`. We also may need to define `config_type` and `eltype`. In particular, `config_type` needs to be defined here to put the type as the polynomial's degree to be able to distinguish among different degrees. The `eltype` should be defined to use concrete types internally on several queues.
 
 ```@example Poly
 using SearchModels, Random
-import SearchModels: random_configuration, combine_configurations, mutate_configuration, config_type
+import SearchModels: combine, mutate, config_type
 
 Random.seed!(0) # fixing seed
 
@@ -28,15 +28,15 @@ config_type(c::PolyModel) = length(c)  # polynomial degree
 The precise definitions of the exploration methods may differ, but they are used to randomly sample the solution space, combine two configurations into a single one, and mutate one based (or not) on the space definition. Please notice that a polynomial is simply represented by its coefficients.
 
 ```@example Poly
-function random_configuration(space::PolyModelSpace)
+function Base.rand(space::PolyModelSpace)
     randn(rand(space.degree) + 1)
 end
 
-function combine_configurations(a::PolyModel, b::PolyModel)
+function combine(a::PolyModel, b::PolyModel)
     [(a[i] + b[i]) / 2.0 for i in eachindex(a)]
 end
 
-function mutate_configuration(space::PolyModelSpace, c::PolyModel, iter)
+function mutate(space::PolyModelSpace, c::PolyModel, iter)
     step = 1.0 + 1 / (1 + iter)
     [SearchModels.scale(c[i], s=step) for i in eachindex(c)]
 end
@@ -104,7 +104,7 @@ B = search_models(space, error_function, 300,
 length(B)
 ```
 
-Here, we indicte that the search process must `error_function` as error (it receives a configuration), starts sampling `300` random solutions generated with `random_configuration`. Note that the search will store atmost `maxpopulation` individuals, those achieving the lower errors. If not specified `maxpopulation` is set to the number of initial population.
+Here, we indicte that the search process must `error_function` as error (it receives a configuration), starts sampling `300` random solutions generated with `rand`. Note that the search will store atmost `maxpopulation` individuals, those achieving the lower errors. If not specified `maxpopulation` is set to the number of initial population.
 The iterative process consists on explore the solution space using combination and mutation, using top `bsize` items. The combination and mutation generate `crossbsize` and `mutbisize` new configurations at each iteration (using top `bsize` configurations). The search is stoppend when two iterations do not improve atleast by `tol` the error (of the worst error in the entire population) or the number of maximum allowed iterations are reached. 
 
 ```@example Poly
