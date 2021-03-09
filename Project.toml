@@ -1,7 +1,7 @@
 name = "SearchModels"
 uuid = "0e966ebe-b704-4a65-8279-db954bfe5da0"
 authors = ["Eric S. Tellez"]
-version = "0.1.6"
+version = "0.2.0"
 
 [deps]
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"

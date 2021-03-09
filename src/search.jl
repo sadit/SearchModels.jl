@@ -1,7 +1,7 @@
 # This file is a part of SearchModels.jl
 # License is Apache 2.0: https://www.apache.org/licenses/LICENSE-2.0.txt
 
-export AbstractSolutionSpace, config_type, search_models, random_configuration, combine_configurations, mutate_configuration
+export AbstractSolutionSpace, config_type, search_models, random_configuration, combine_configurations_select, combine_configurations, mutate_configuration
 using Distributed, Random, StatsBase
 
 abstract type AbstractSolutionSpace end
@@ -24,36 +24,54 @@ Creates a random configuration sampling the given space
 """
 function random_configuration end
 
-"""
-    combine_configurations(c1, c2)
+function _compatible_space(space::AbstractVector, c)
+    for s in space
+        if c isa eltype(s)
+            return c
+        end
+    end
+    error("uncompatible space for $(typeof(c)) in space list $(typeof(space))")
+end
 
-Combines two configurations into a single one.
+_compatible_space(space::AbstractSolutionSpace, c) = space
 
-"""
-function combine_configurations end
-
-"""
-    combine_configurations(a, L::AbstractVector)
-
-Combines the first configuration (1st argument) with some of the given list of pairs (config => score),
-The `a` config is always at the end of `L` and also `L` is always shuffled.
-If you are in doubt, use the higher level interface `combine_configurations(c1, c2)`.
-"""
-function combine_configurations(a::T, L::AbstractVector) where T
-    # L is a vector of pairs config => score
-    # L should be shuffled before combining
-    t_ = config_type(a)
+function _compatible_config(c, L::AbstractVector)
+    t_ = config_type(c)
 
     for p in L
-        c = p.first
-        if config_type(c) == t_
-            return combine_configurations(a, c)
+        @show t_, p
+        x = p.first
+        if config_type(x) == t_
+            return x
         end
     end
 
-    a
+    error("uncompatible configuration for $(typeof(c))")
 end
 
+
+"""
+    combine_configurations(space::AbstractSolutionSpace, c1, c2)
+    combine_configurations(c1, c2)
+
+Combines two configurations into a single configuration. The three argument functions defaults to two argument function.
+
+"""
+function combine_configurations end
+combine_configurations(space, c1, c2) = combine_configurations(c1, c2)
+
+"""
+    combine_configurations_select(space, a, L::AbstractVector)
+
+Combines `a` configuration with some compatible configuation in the given list of pairs (config => score),
+The `a` config is always at the end of `L` and also `L` is always shuffled.
+If you are in doubt, use the higher level interface `combine_configurations(space, c1, c2)`.
+"""
+function combine_configurations_select(space, a::T, L::AbstractVector) where T
+    # L is a vector of pairs config => score
+    # L should be shuffled before combining
+    combine_configurations(_compatible_space(space, a), a, _compatible_config(a, L))
+end
 
 """
     mutate_configuration(space::AbstractSolutionSpace, config, iter::Integer)
@@ -62,17 +80,12 @@ end
 Mutates configuration. If space is a list of spaces, then the proper space is determined.
 """
 function mutate_configuration(space::AbstractSolutionSpace, c, iter)
-    combine_configurations(c, random_configuration(space))
+    combine_configurations(space, c, random_configuration(space))
 end
 
-function mutate_configuration(space::AbstractVector, c, iter)
-    for s in space
-        if c isa eltype(s)
-            return mutate_configuration(s, c, iter)
-        end
-    end
+function mutate_configuration(space, c, iter)
+    mutate_configuration(_compatible_space(space, c), c, iter)
 end
-
 
 """
     evaluate_queue(error_function, evalqueue, population, config_and_errors, parallel)
@@ -119,20 +132,61 @@ function push_config!(accept_config, conf, evalqueue, observed)
 end
 
 """
+    SearchParameters(;
+        maxpopulation = 32,
+        bsize = maxpopulation,
+        mutbsize = bsize,
+        crossbsize = bsize,
+        maxiters = 300,
+        tol = 0.001,
+        verbose = true)
+
+Creates a mutable list of search parameters, it can be changed online via `inspect_population`
+"""
+mutable struct SearchParameters
+    maxpopulation::Int
+    bsize::Int
+    mutbsize::Int
+    crossbsize::Int
+    maxiters::Int
+    tol::Int
+    verbose::Int
+end
+
+SearchParameters(;
+    maxpopulation = 32,
+    bsize = maxpopulation,
+    mutbsize = bsize,
+    crossbsize = bsize,
+    maxiters = 300,
+    tol = 0.001,
+    verbose = true
+) = SearchParameters(maxpopulation, bsize, mutbsize, crossbsize, maxiters, tol, verbose)
+
+"""
     search_models(
         space::AbstractSolutionSpace,
         error_function::Function,  # receives only the configuration to be population
         initialpopulation=32;
         maxpopulation=initialpopulation,
         accept_config::Function=config->true,
-        inspect_population::Function=(space, population) -> nothing,
+        inspect_population::Function=(space, params, population) -> nothing,
         bsize=initialpopulation,
         mutbsize=4,
         crossbsize=4,
         maxiters=300,
         tol=0.001,
         verbose=true,
-        parallel=:none # :none, :threads, :distributed
+        parallel=:none, # :none, :threads, :distributed,
+        params = SearchParameters(;
+            maxpopulation = maxpopulation,
+            bsize = bsize,
+            mutbsize = mutsize,
+            crossbsize = crossbsize,
+            maxiters = maxiters,
+            tol = tol,
+            verbose = verbose
+        )
     )
 
 Explores the search space trying to minimize the given error function. The procedure consists on an iterative stochastic method
@@ -140,7 +194,7 @@ based on an evolutionary algorithm. It is starts with `initialpopulation` config
 it selects at most `maxpopulation` configurations at any iteration (best ones).
 - `space`: Search space definition
 - `error_function`: the function to minimize (receives the configuration as argument)
-- `initialpopulation`: initial number of configurations to conform the population
+- `initialpopulation`: initial number of configurations to conform the population, or an initial list of configurations
 - `maxpopulation`: the maximum number of configurations to be kept at each iteration (based on its minimum error)
 - `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
 - `inspect_population`: observes the population after evaluating a beam of solutions
@@ -154,73 +208,87 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
   - `:none`: there is no parallelization, the default value
   - `:threads`: evaluates error functions using threads
   - `:distributed`: evaluates error functions using a distributed environment (using the available workers)
+- `params` search parameters (created with other parameters)
 """
 function search_models(
         space::AbstractSolutionSpace,
         error_function::Function,  # receives only the configuration to be population
-        initialpopulation=32;
-        maxpopulation=initialpopulation,
+        initialpopulation=32; # it can be a list of seeds
+        maxpopulation=32,
         accept_config::Function=config -> true,
-        inspect_population::Function=(space, population) -> nothing,
-        bsize=initialpopulation,
-        mutbsize=16,
-        crossbsize=16,
+        inspect_population::Function=(space, params, population) -> nothing,
+        bsize=maxpopulation,
+        mutbsize=bsize,
+        crossbsize=bsize,
         maxiters=300,
         tol=0.001,
         verbose=true,
-        parallel=:none # :none, :threads, :distributed
+        parallel=:none, # :none, :threads, :distributed
+        params=SearchParameters(
+            maxpopulation=maxpopulation,
+            bsize=bsize,
+            mutbsize=mutbsize,
+            crossbsize=crossbsize,
+            maxiters=maxiters,
+            tol=tol,
+            verbose=verbose
+        )
     )
-    
     ConfigType = eltype(space)
     population = Pair{ConfigType,Float64}[]
     evalqueue = ConfigType[]
     observed = Set{ConfigType}() # solutions should override hash and isqual functions
 
-    for i in 1:initialpopulation
-        push_config!(accept_config, random_configuration(space), evalqueue, observed)
+    if initialpopulation isa Integer
+        for i in 1:initialpopulation
+            push_config!(accept_config, random_configuration(space), evalqueue, observed)
+        end
+    else
+        for c in initialpopulation
+            push_config!(accept_config, c, evalqueue, observed)
+        end
     end
-    
     prev = 0.0
     iter = 0
     config_and_errors = Pair[]
-    verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$maxpopulation, bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
+    verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
 
-    while iter <= maxiters
+    while iter <= params.maxiters
         iter += 1
         empty!(config_and_errors)
         evaluate_queue(error_function, evalqueue, population, config_and_errors, parallel)
         sort!(population, by=x->x.second)
-        inspect_population(space, population)
+        inspect_population(space, params, population)
 
-        if maxpopulation < length(population)
-            resize!(population, maxpopulation)
+        if params.maxpopulation < length(population)
+            resize!(population, params.maxpopulation)
         end
 
-        if iter >= maxiters
-            verbose && println("SearchModels> reached maximum number of iterations $maxiters")
+        if iter >= params.maxiters
+            verbose && println("SearchModels> reached maximum number of iterations $(params.maxiters)")
             return population
         end
 
         curr = population[end].second
-        if abs(curr - prev) <= tol
-            verbose && println("SearchModels> stop by convergence error=$curr, tol=$tol")
+        if abs(curr - prev) <= params.tol
+            verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol)")
             return population
         end
 
         prev = curr
         ## verbose && println(stderr, "SearchModels> *** generating extra indivuals bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
         best_error, worst_error = population[1].second, population[end].second ## the top configurations will be shuffled
-        L = @view population[1:min(bsize, length(population))]
-        for i in 1:mutbsize
+        L = @view population[1:min(params.bsize, length(population))]
+        for i in 1:params.mutbsize
             conf = mutate_configuration(space, rand(L).first, iter)
             push_config!(accept_config, conf, evalqueue, observed)
         end
 
-        for i in 1:crossbsize
+        for i in 1:params.crossbsize
             shuffle!(L) # the way this procedure is designed is to support heterogeneous options
             i = rand(1:length(L))
             L[end], L[i] = L[end], L[i]
-            conf = combine_configurations(L[end].first, L)
+            conf = combine_configurations_select(space, L[end].first, L)
             push_config!(accept_config, conf, evalqueue, observed)
         end
 

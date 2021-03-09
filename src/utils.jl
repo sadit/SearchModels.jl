@@ -43,10 +43,10 @@ function translate(x::T; s=2, p1=0.5, p2=0.5, lower=typemin(T), upper=typemax(T)
 end
 
 """
-    change(x, choices, p1=0.5)
+    change(x, choices; p1=0.5)
 
 With prob `p1` `x` is changed by some element in `choices`. Please note that if ``x \\in choices`` then the actual `p1` is modified.
 """
-function change(x, choices, p1=0.5)
+function change(x, choices; p1=0.5)
     rand() < p1 ? rand(choices) : x
 end

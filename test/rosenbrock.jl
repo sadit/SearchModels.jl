@@ -42,7 +42,7 @@ function rosenbrock(x)::Float64
 end
 
 @testset "SearchModels.jl" begin
-    function inspect_population(space, population)
+    function inspect_population(space, params, population)
         xmin = ymin = typemax(Float64)
         xmax = ymax = typemin(Float64)
 
