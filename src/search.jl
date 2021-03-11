@@ -24,22 +24,22 @@ Creates a random configuration sampling the given space
 """
 
 """
-    _compatible_space(space::AbstractVector, c)
+    compatible_space(space::AbstractVector, c)
 
 Selects the compatible space for configuration c
 """
-function _compatible_space(space::AbstractVector, c)
+function compatible_space(space::AbstractVector, c)
     for s in space
         if c isa eltype(s)
-            return c
+            return s
         end
     end
     error("uncompatible space for $(typeof(c)) in space list $(typeof(space))")
 end
 
-_compatible_space(space::AbstractSolutionSpace, c) = space
+compatible_space(space::AbstractSolutionSpace, c) = space
 
-function _compatible_config(c, L::AbstractVector)
+function compatible_config(c, L::AbstractVector)
     t_ = config_type(c)
 
     for p in L
@@ -71,7 +71,7 @@ If you are in doubt, use the higher level interface `combine(c1, c2)`.
 function combine_select(a::T, L::AbstractVector) where T
     # L is a vector of pairs config => score
     # L should be shuffled before combining
-    combine(a, _compatible_config(a, L))
+    combine(a, compatible_config(a, L))
 end
 
 function mutate end
@@ -82,8 +82,7 @@ function mutate end
 Mutates configuration. If space is a list of spaces, then the proper space is determined.
 """
 function mutate(space::AbstractVector, c, iter)
-    @show space, c, iter
-    mutate(_compatible_space(space, c), c, iter)
+    mutate(compatible_space(space, c), c, iter)
 end
 
 """
@@ -148,8 +147,8 @@ mutable struct SearchParameters
     mutbsize::Int
     crossbsize::Int
     maxiters::Int
-    tol::Int
-    verbose::Int
+    tol::Float64
+    verbose::Bool
 end
 
 SearchParameters(;
@@ -291,7 +290,7 @@ function search_models(
             push_config!(accept_config, conf, evalqueue, observed)
         end
 
-        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
+        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), bsize: $(params.bsize), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
     end
 
     sort!(population, by=x->x.second)
