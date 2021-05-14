@@ -233,7 +233,7 @@ function search_models(
         )
     )
     ConfigType = eltype(space)
-    population = Pair{ConfigType,Float64}[]
+    population = Pair{ConfigType,Any}[]
     evalqueue = ConfigType[]
     observed = Set{ConfigType}() # solutions should override hash and isqual functions
 
