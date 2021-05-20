@@ -230,7 +230,8 @@ function search_models(
             maxiters=maxiters,
             tol=tol,
             verbose=verbose
-        )
+        ),
+        by=identity
     )
     ConfigType = eltype(space)
     population = Pair{ConfigType,Any}[]
@@ -267,7 +268,7 @@ function search_models(
             return population
         end
 
-        curr = population[end].second
+        curr = by(population[end].second)
         if abs(curr - prev) <= params.tol
             verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol)")
             return population

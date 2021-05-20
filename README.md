@@ -5,7 +5,7 @@
 [![Coverage](https://codecov.io/gh/sadit/SearchModels.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/sadit/SearchModels.jl)
 
 
-Provides a generic method for minimizing model errors using stochastic search, which is often used whenever the problem has no concept of derivative. This kind of problems rely on large exploration of combinatorial spaces based on error function.
+Provides a generic tool for minimizing model errors using stochastic search, which is often used whenever the problem has no concept of derivative. This kind of problems rely on large exploration of combinatorial spaces based on error function.
 
 SearchModels rely on basic exploration functions that can be specified for many applications.
 
