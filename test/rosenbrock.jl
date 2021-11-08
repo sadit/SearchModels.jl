@@ -3,7 +3,7 @@
 using Test
 
 using SearchModels
-import SearchModels: combine, mutate, config_type
+import SearchModels: combine, mutate
 
 mutable struct RosenbrockSpace <: AbstractSolutionSpace
     xrange
@@ -62,7 +62,7 @@ end
     println("===== RoseParams without inspect_population")
 
     space = RosenbrockSpace()
-    B = search_models(space, rosenbrock, 1000,
+    params = SearchParams(
         bsize=32,
         mutbsize=100,
         crossbsize=100,
@@ -70,6 +70,8 @@ end
         maxiters=300,
         verbose=true
     )
+
+    B = search_models(rosenbrock, space, 1000, params)
 
     for (i, p) in enumerate(B[1:15])
         println(stderr, i => p)
@@ -79,15 +81,7 @@ end
 
     space = RosenbrockSpace()
 
-    B = search_models(space, rosenbrock, 1000,
-        inspect_population=inspect_population,
-        bsize=32,
-        mutbsize=100,
-        crossbsize=100,
-        tol=0.0,
-        maxiters=300,
-        verbose=true
-    )
+    B = search_models(rosenbrock, space, 1000, params, inspect_population=inspect_population)
 
     for (i, p) in enumerate(B[1:15])
         println(stderr, i => p)

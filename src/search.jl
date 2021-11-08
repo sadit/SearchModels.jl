@@ -1,7 +1,7 @@
 # This file is a part of SearchModels.jl
 
-export AbstractSolutionSpace, config_type, search_models, rand, combine_select, combine, mutate
-using Distributed, Random, StatsBase
+export AbstractSolutionSpace, search_models, SearchParams, rand, combine_select, combine, mutate
+using Distributed, Random, StatsBase, Parameters
 
 abstract type AbstractSolutionSpace end
 ## NOTE: all configuratons must define hash, and isequal
@@ -11,7 +11,7 @@ abstract type AbstractSolutionSpace end
 
 Config type identifier, it may or not be a type
 """
-config_type(::T) where T = Base.typename(T)
+config_type(::T) where T = Symbol(Base.typename(T))
 
 #function rand(space::AbstractSolutionSpace) end
 #function combine(a, b) end
@@ -85,43 +85,46 @@ function mutate(space::AbstractVector, c, iter)
 end
 
 """
-    evaluate_queue(error_function, evalqueue, population, config_and_errors, parallel)
+    evaluate_queue(errfun, evalqueue, config_and_perf, parallel)
 
-Evaluates queue of using error_function; the resulting `config => errors` pairs are pushed into the population.
+Evaluates queue of using errfun; the resulting `config => performances` are stored in `config_and_perf`
 
 """
-function evaluate_queue(error_function::Function, evalqueue, population, config_and_errors, parallel)
+function evaluate_queue(errfun::Function, evalqueue, config_and_perf, parallel)
     while length(evalqueue) > 0
         c = pop!(evalqueue)
         if parallel == :distributed
-            perf = Distributed.@spawn error_function(c)
-            push!(config_and_errors, c => perf)
+            perf = Distributed.@spawn errfun(c)
+            push!(config_and_perf, c => perf)
         elseif parallel == :threads
-            perf = Threads.@spawn error_function(c)
-            push!(config_and_errors, c => perf)
-        elseif parallel == :none
-            push!(population, c => error_function(c))
+            perf = Threads.@spawn errfun(c)
+            push!(config_and_perf, c => perf)
         else
             error("Unknown parallel option")
         end
     end
-    
-    # fetching all results
-    if parallel !== :none
-        for s in config_and_errors
-            push!(population, s.first => fetch(s.second))
-        end
-    end
-    ## verbose && println(stderr, "SearchModels> *** iteration $iter finished")
-    population
 end
 
+function fetch_queue(config_and_perf, population)
+    f = fetch(first(config_and_perf))
+    if population === nothing
+        [k => fetch(v) for (k, v) in config_and_perf]
+    else
+        for (k, v) in config_and_perf
+            push!(population, k => fetch(v))
+        end
+
+        population
+    end
+end
+
+
 """
-    push_config!(accept_config, conf, evalqueue, observed)
+    queue_config!(accept_config, conf, evalqueue, observed)
 
 Pushes `conf` into the evaluation queue. It checks if was already observed and if it is accepted by the `accept_config` predicate.
 """
-function push_config!(accept_config, conf, evalqueue, observed)
+function queue_config!(accept_config, conf, evalqueue, observed)
     if !(conf in observed) && accept_config(conf)
         push!(evalqueue, conf)
         push!(observed, conf)
@@ -129,133 +132,115 @@ function push_config!(accept_config, conf, evalqueue, observed)
 end
 
 """
-    SearchParameters(;
-        maxpopulation = 32,
-        bsize = maxpopulation,
-        mutbsize = bsize,
-        crossbsize = bsize,
-        maxiters = 300,
-        tol = 0.001,
-        verbose = true)
-
-Creates a mutable list of search parameters, it can be changed online via `inspect_population`
-"""
-mutable struct SearchParameters
-    maxpopulation::Int
-    bsize::Int
-    mutbsize::Int
-    crossbsize::Int
-    maxiters::Int
-    tol::Float64
-    verbose::Bool
-end
-
-SearchParameters(;
-    maxpopulation = 32,
-    bsize = maxpopulation,
-    mutbsize = bsize,
-    crossbsize = bsize,
-    maxiters = 300,
-    tol = 0.001,
-    verbose = true
-) = SearchParameters(maxpopulation, bsize, mutbsize, crossbsize, maxiters, tol, verbose)
-
-"""
-    search_models(
-        space::AbstractSolutionSpace,
-        error_function::Function,  # receives only the configuration to be population
-        initialpopulation=32;
-        maxpopulation=initialpopulation,
-        accept_config::Function=config->true,
-        inspect_population::Function=(space, params, population) -> nothing,
-        bsize=initialpopulation,
-        mutbsize=4,
-        crossbsize=4,
-        maxiters=300,
-        tol=0.001,
-        verbose=true,
-        parallel=:none, # :none, :threads, :distributed,
-        params = SearchParameters(;
-            maxpopulation = maxpopulation,
-            bsize = bsize,
-            mutbsize = mutsize,
-            crossbsize = crossbsize,
-            maxiters = maxiters,
-            tol = tol,
-            verbose = verbose
-        )
+    SearchParams(;
+        maxpopulation::Int = 32
+        bsize::Int = 16
+        mutbsize::Int = 8
+        crossbsize::Int = 8
+        maxiters::Int = 300
+        tol::Float64 = 0.001
+        verbose::Bool = true
     )
 
-Explores the search space trying to minimize the given error function. The procedure consists on an iterative stochastic method
-based on an evolutionary algorithm. It is starts with `initialpopulation` configurations, evaluate them mutate and cross them;
-it selects at most `maxpopulation` configurations at any iteration (best ones).
-- `space`: Search space definition
-- `error_function`: the function to minimize (receives the configuration as argument)
-- `initialpopulation`: initial number of configurations to conform the population, or an initial list of configurations
+reates a mutable list of search parameters, it can be changed online via `inspect_population`.
+
 - `maxpopulation`: the maximum number of configurations to be kept at each iteration (based on its minimum error)
-- `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
-- `inspect_population`: observes the population after evaluating a beam of solutions
 - `bsize`: number of best items to be used for mutation and crossing procedures
 - `mutbsize`: number of new configurations per iteration from a mutation procedure
 - `crossbsize`: number of new configurations per iteration from a crossing procedure
 - `maxiters`: maximum iterations of the search procedure
 - `tol`: stop search tolerance to population errors on the best `maxpopulation` configurations; negative values will force to evaluate `maxiters`
 - `verbose`: controls if the verbosity of the search iterations
+
+"""
+@with_kw mutable struct SearchParams
+    maxpopulation::Int = 16
+    bsize::Int = 8
+    mutbsize::Int = 8
+    crossbsize::Int = 8
+    maxiters::Int = 300
+    tol::Float64 = 0.001
+    verbose::Bool = true
+end
+
+"""
+    search_models(
+        errfun::Function,  # error function, it can be used with `do conf ... end` block
+        space::AbstractSolutionSpace,
+        initialpopulation=32,
+        params::SearchParams=SearchParams();
+        geterr::Function=identity,
+        accept_config::Function=config->true,
+        inspect_population::Function=(space, params, population) -> nothing,
+        parallel=:none, # :none, :threads, :distributed
+    )
+
+Explores the search space trying to minimize the given error function. The procedure consists on an iterative stochastic method
+based on an evolutionary algorithm. It is starts with `initialpopulation` configurations, evaluate them mutate and cross them;
+it selects at most `maxpopulation` configurations at any iteration (best ones).
+- `errfun`: the function to minimize (receives the configuration as argument)
+- `space`: Search space definition
+- `params`: search parameters
+- `geterr` a function to compute or fetch the cost (a single floating point) on the output of `errfun`
+- `initialpopulation`: initial number of configurations to conform the population, or an initial list of configurations
+- `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
+- `inspect_population`: observes the population after evaluating a beam of solutions
 - `parallel`: controls if the search is made with some kind of parallel strategy (only used for evaluation errors). Valid values are:
   - `:none`: there is no parallelization, the default value
   - `:threads`: evaluates error functions using threads
   - `:distributed`: evaluates error functions using a distributed environment (using the available workers)
-- `params` search parameters (created with other parameters)
 """
 function search_models(
+        errfun::Function,
         space::AbstractSolutionSpace,
-        error_function::Function,  # receives only the configuration to be population
-        initialpopulation=32; # it can be a list of seeds
-        maxpopulation=32,
+        initialpopulation=32, # it can alos be a list of config seeds
+        params::SearchParams=SearchParams();
+        geterr::Function=identity,
         accept_config::Function=config -> true,
         inspect_population::Function=(space, params, population) -> nothing,
-        bsize=maxpopulation,
-        mutbsize=bsize,
-        crossbsize=bsize,
-        maxiters=300,
-        tol=0.001,
-        verbose=true,
         parallel=:none, # :none, :threads, :distributed
-        params=SearchParameters(
-            maxpopulation=maxpopulation,
-            bsize=bsize,
-            mutbsize=mutbsize,
-            crossbsize=crossbsize,
-            maxiters=maxiters,
-            tol=tol,
-            verbose=verbose
-        ),
-        by=identity
     )
+
     ConfigType = eltype(space)
-    population = Pair{ConfigType,Any}[]
     evalqueue = ConfigType[]
     observed = Set{ConfigType}() # solutions should override hash and isqual functions
 
     if initialpopulation isa Integer
         for i in 1:initialpopulation
-            push_config!(accept_config, rand(space), evalqueue, observed)
+            queue_config!(accept_config, rand(space), evalqueue, observed)
         end
     else
         for c in initialpopulation
-            push_config!(accept_config, c, evalqueue, observed)
+            queue_config!(accept_config, c, evalqueue, observed)
         end
     end
     prev = 0.0
     iter = 0
-    config_and_errors = Pair[]
-    verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$tol, initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
+
+    population = nothing
+    config_and_perf = Pair[]
+    params.verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$(params.tol), initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
 
     while iter <= params.maxiters
         iter += 1
-        empty!(config_and_errors)
-        evaluate_queue(error_function, evalqueue, population, config_and_errors, parallel)
-        sort!(population, by=x->x.second)
+
+        if parallel == :none
+            if population === nothing
+                population = [c => errfun(c) for c in evalqueue]
+            else
+                for c in evalqueue
+                    push!(population, c => errfun(c))
+                end
+            end
+            
+            empty!(evalqueue)
+        else
+            empty!(config_and_perf)
+            evaluate_queue(errfun, evalqueue, config_and_perf, parallel)
+            population = fetch_queue(evalqueue, population)    
+        end
+
+        sort!(population, by=x->geterr(x.second))    
         inspect_population(space, params, population)
 
         if params.maxpopulation < length(population)
@@ -263,23 +248,23 @@ function search_models(
         end
 
         if iter >= params.maxiters
-            verbose && println("SearchModels> reached maximum number of iterations $(params.maxiters)")
+            params.verbose && println("SearchModels> reached maximum number of iterations $(params.maxiters)")
             return population
         end
 
-        curr = by(population[end].second)
+        curr = geterr(population[end].second)
         if abs(curr - prev) <= params.tol
-            verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol)")
+            params.verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol)")
             return population
         end
 
         prev = curr
-        ## verbose && println(stderr, "SearchModels> *** generating extra indivuals bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
+        ## params.verbose && println(stderr, "SearchModels> *** generating extra indivuals bsize=$bsize, mutbsize=$mutbsize, crossbsize=$crossbsize")
         best_error, worst_error = population[1].second, population[end].second ## the top configurations will be shuffled
         L = @view population[1:min(params.bsize, length(population))]
         for i in 1:params.mutbsize
             conf = mutate(space, rand(L).first, iter)
-            push_config!(accept_config, conf, evalqueue, observed)
+            queue_config!(accept_config, conf, evalqueue, observed)
         end
 
         for i in 1:params.crossbsize
@@ -287,11 +272,11 @@ function search_models(
             i = rand(1:length(L))
             L[end], L[i] = L[end], L[i]
             conf = combine_select(L[end].first, L)
-            push_config!(accept_config, conf, evalqueue, observed)
+            queue_config!(accept_config, conf, evalqueue, observed)
         end
 
-        verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), bsize: $(params.bsize), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
+        params.verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), bsize: $(params.bsize), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
     end
 
-    sort!(population, by=x->x.second)
+    sort!(population, by=x->geterr(x.second))
 end

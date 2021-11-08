@@ -11,9 +11,8 @@ end
 
 const PolyModel = Vector{Float64}
 
+config_type(c::PolyModel) = length(c)
 Base.eltype(::PolyModelSpace) = PolyModel
-config_type(c::PolyModel) = length(c)  # polynomial degree
-
 Base.rand(space::PolyModelSpace) = randn(rand(space.degree) + 1)
 
 function combine(a::PolyModel, b::PolyModel)
@@ -44,7 +43,16 @@ end
 @testset "SearchModels.jl" begin
     X, y, coeff__ = create_model_1(4)
 
-    function error_function(c)::Float64
+    space = PolyModelSpace(2:5)
+    B = search_models(space, 300, SearchParams(
+            bsize=64,
+            mutbsize=32,
+            crossbsize=32,
+            tol=0.0,
+            maxiters=100,
+            verbose=true
+        )
+    ) do c
         s = zero(Float64)
         @inbounds @simd for i in eachindex(X)
             m = poly(c, X[i]) - y[i]
@@ -53,16 +61,6 @@ end
 
         s / length(X)
     end
-
-    space = PolyModelSpace(2:5)
-    B = search_models(space, error_function, 300,
-        bsize=64,
-        mutbsize=32,
-        crossbsize=32,
-        tol=0.0,
-        maxiters=100,
-        verbose=true
-    )
 
     println("===== PolyModel -- poly: $(coeff__)")
     for (i, p) in enumerate(B[1:15])
