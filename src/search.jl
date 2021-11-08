@@ -85,39 +85,49 @@ function mutate(space::AbstractVector, c, iter)
 end
 
 """
-    evaluate_queue(errfun, evalqueue, config_and_perf, parallel)
+    evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
 
 Evaluates queue of using errfun; the resulting `config => performances` are stored in `config_and_perf`
 
 """
-function evaluate_queue(errfun::Function, evalqueue, config_and_perf, parallel)
+function evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
+    if parallel === :none
+        if population === nothing
+            population = [c => errfun(c) for c in evalqueue]
+        else
+            for c in evalqueue
+                push!(population, c => errfun(c))
+            end
+        end
+        
+        empty!(evalqueue)
+        return population
+    end
+
+    empty!(tmp)
     while length(evalqueue) > 0
         c = pop!(evalqueue)
-        if parallel == :distributed
+        if parallel === :distributed
             perf = Distributed.@spawn errfun(c)
-            push!(config_and_perf, c => perf)
-        elseif parallel == :threads
+            push!(tmp, c => perf)
+        elseif parallel === :threads
             perf = Threads.@spawn errfun(c)
-            push!(config_and_perf, c => perf)
+            push!(tmp, c => perf)
         else
             error("Unknown parallel option")
         end
     end
-end
 
-function fetch_queue(config_and_perf, population)
-    f = fetch(first(config_and_perf))
     if population === nothing
-        [k => fetch(v) for (k, v) in config_and_perf]
+        [k => fetch(v) for (k, v) in tmp]
     else
-        for (k, v) in config_and_perf
+        for (k, v) in tmp
             push!(population, k => fetch(v))
         end
 
         population
     end
 end
-
 
 """
     queue_config!(accept_config, conf, evalqueue, observed)
@@ -198,7 +208,7 @@ function search_models(
         geterr::Function=identity,
         accept_config::Function=config -> true,
         inspect_population::Function=(space, params, population) -> nothing,
-        parallel=:none, # :none, :threads, :distributed
+        parallel=:none # :none, :threads, :distributed
     )
 
     ConfigType = eltype(space)
@@ -218,28 +228,12 @@ function search_models(
     iter = 0
 
     population = nothing
-    config_and_perf = Pair[]
+    tmp = Pair[]
     params.verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$(params.tol), initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
 
     while iter <= params.maxiters
         iter += 1
-
-        if parallel == :none
-            if population === nothing
-                population = [c => errfun(c) for c in evalqueue]
-            else
-                for c in evalqueue
-                    push!(population, c => errfun(c))
-                end
-            end
-            
-            empty!(evalqueue)
-        else
-            empty!(config_and_perf)
-            evaluate_queue(errfun, evalqueue, config_and_perf, parallel)
-            population = fetch_queue(evalqueue, population)    
-        end
-
+        population = evaluate_queue(errfun, evalqueue, population, parallel, tmp)
         sort!(population, by=x->geterr(x.second))    
         inspect_population(space, params, population)
 
