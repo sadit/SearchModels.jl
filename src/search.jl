@@ -92,11 +92,13 @@ Evaluates queue of using errfun; the resulting `config => performances` are stor
 """
 function evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
     if parallel === :none
-        if population === nothing
-            population = [c => errfun(c) for c in evalqueue]
-        else
-            for c in evalqueue
-                push!(population, c => errfun(c))
+        for c in evalqueue
+            try
+                p = errfun(c)
+                push!(population, c => p)
+            catch e
+                @info e
+                @info "ignoring configuration due to exception"
             end
         end
         
@@ -118,15 +120,17 @@ function evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
         end
     end
 
-    if population === nothing
-        [k => fetch(v) for (k, v) in tmp]
-    else
-        for (k, v) in tmp
-            push!(population, k => fetch(v))
+    for (c, perf) in tmp
+        try
+            p = fetch(perf)
+            push!(population, c => p)
+        catch e
+            @info e
+            @info "ignoring configuration due to exception"
         end
-
-        population
     end
+
+    population
 end
 
 """
@@ -203,7 +207,7 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
 function search_models(
         errfun::Function,
         space::AbstractSolutionSpace,
-        initialpopulation=32, # it can alos be a list of config seeds
+        initialpopulation=32, # it can also be a list of config seeds
         params::SearchParams=SearchParams();
         geterr::Function=identity,
         accept_config::Function=config -> true,
@@ -227,15 +231,15 @@ function search_models(
     prev = 0.0
     iter = 0
 
-    population = nothing
+    population = Pair[]
     tmp = Pair[]
     params.verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$(params.tol), initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
 
     while iter <= params.maxiters
         iter += 1
         population = evaluate_queue(errfun, evalqueue, population, parallel, tmp)
-        sort!(population, by=x->geterr(x.second))    
         inspect_population(space, params, population)
+        sort!(population, by=x->geterr(x.second))
 
         if params.maxpopulation < length(population)
             resize!(population, params.maxpopulation)
@@ -248,7 +252,7 @@ function search_models(
 
         curr = geterr(population[end].second)
         if abs(curr - prev) <= params.tol
-            params.verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol)")
+            params.verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol), iter=$iter (of $(params.maxiters))")
             return population
         end
 
