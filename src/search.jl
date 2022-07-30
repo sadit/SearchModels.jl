@@ -97,8 +97,12 @@ function evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
                 p = errfun(c)
                 push!(population, c => p)
             catch e
-                @info e
                 @info "ignoring configuration due to exception"
+                if e isa InvalidSetupError
+                    showerror(stderr, e)
+                else
+                    showerror(stderr, e, catch_backtrace())
+                end
             end
         end
         
