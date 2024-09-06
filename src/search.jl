@@ -254,6 +254,7 @@ function search_models(
             return population
         end
 
+        length(population) == 0 && return population
         curr = geterr(population[end].second)
         if abs(curr - prev) <= params.tol
             params.verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol), iter=$iter (of $(params.maxiters))")
