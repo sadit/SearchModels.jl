@@ -156,7 +156,6 @@ end
         mutbsize::Int = 8
         crossbsize::Int = 8
         maxiters::Int = 300
-        tol::Float64 = 0.001
         verbose::Bool = true
     )
 
@@ -167,7 +166,6 @@ reates a mutable list of search parameters, it can be changed online via `inspec
 - `mutbsize`: number of new configurations per iteration from a mutation procedure
 - `crossbsize`: number of new configurations per iteration from a crossing procedure
 - `maxiters`: maximum iterations of the search procedure
-- `tol`: stop search tolerance to population errors on the best `maxpopulation` configurations; negative values will force to evaluate `maxiters`
 - `verbose`: controls if the verbosity of the search iterations
 
 """
@@ -177,8 +175,16 @@ reates a mutable list of search parameters, it can be changed online via `inspec
     mutbsize::Int = 8
     crossbsize::Int = 8
     maxiters::Int = 300
-    tol::Float64 = 0.001
     verbose::Bool = true
+end
+
+function sort_by_best(space::AbstractSolutionSpace, params::SearchParams, population)
+    sort!(population, by=last)
+    if params.maxpopulation < length(population)
+        resize!(population, params.maxpopulation)
+    end
+
+    population
 end
 
 """
@@ -190,6 +196,8 @@ end
         geterr::Function=identity,
         accept_config::Function=config->true,
         inspect_population::Function=(space, params, population) -> nothing,
+        sort_by_best::Function=sort_by_best,
+        convergence::Function=(curr, prev) -> abs(last(curr), last(prev)) < 0.001,
         parallel=:none, # :none, :threads, :distributed
     )
 
@@ -202,6 +210,8 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
 - `geterr` a function to compute or fetch the cost (a single floating point) on the output of `errfun`
 - `initialpopulation`: initial number of configurations to conform the population, or an initial list of configurations
 - `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
+- `sort_by_best`: the default minimizes the error function retrieved by geterr 
+- `convergence`: tests current best and previous best for search convergence
 - `inspect_population`: observes the population after evaluating a beam of solutions
 - `parallel`: controls if the search is made with some kind of parallel strategy (only used for evaluation errors). Valid values are:
   - `:none`: there is no parallelization, the default value
@@ -216,6 +226,8 @@ function search_models(
         geterr::Function=identity,
         accept_config::Function=config -> true,
         inspect_population::Function=(space, params, population) -> nothing,
+        sort_by_best::Function=sort_by_best,
+        convergence::Function=(curr, prev) -> abs(last(curr) - last(prev)) < 1e-7,
         parallel=:none # :none, :threads, :distributed
     )
 
@@ -237,18 +249,13 @@ function search_models(
 
     population = Pair[]
     tmp = Pair[]
-    params.verbose && println(stderr, "SearchModels> search params iter=$iter, tol=$(params.tol), initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
+    params.verbose && println(stderr, "SearchModels> search params iter=$iter, initialpopulation=$initialpopulation, maxpopulation=$(params.maxpopulation), bsize=$(params.bsize), mutbsize=$(params.mutbsize), crossbsize=$(params.crossbsize)")
 
     while iter <= params.maxiters
         iter += 1
         population = evaluate_queue(errfun, evalqueue, population, parallel, tmp)
         inspect_population(space, params, population)
-        sort!(population, by=x->geterr(x.second))
-
-        if params.maxpopulation < length(population)
-            resize!(population, params.maxpopulation)
-        end
-
+        population = sort_by_best(space, params, population)
         if iter >= params.maxiters
             params.verbose && println("SearchModels> reached maximum number of iterations $(params.maxiters)")
             return population
@@ -256,8 +263,8 @@ function search_models(
 
         length(population) == 0 && return population
         curr = geterr(population[end].second)
-        if abs(curr - prev) <= params.tol
-            params.verbose && println("SearchModels> stop by convergence error=$curr, tol=$(params.tol), iter=$iter (of $(params.maxiters))")
+        if convergence(curr, prev)
+            params.verbose && println("SearchModels> stop by convergence error=$curr, iter=$iter (of $(params.maxiters))")
             return population
         end
 
@@ -281,5 +288,5 @@ function search_models(
         params.verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), bsize: $(params.bsize), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
     end
 
-    sort!(population, by=x->geterr(x.second))
+    sort_by_best(space, params, population)
 end

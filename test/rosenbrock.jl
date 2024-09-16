@@ -66,7 +66,6 @@ end
         bsize=32,
         mutbsize=100,
         crossbsize=100,
-        tol=0.0,
         maxiters=300,
         verbose=true
     )
