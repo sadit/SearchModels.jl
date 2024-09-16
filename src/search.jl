@@ -263,7 +263,7 @@ function search_models(
 
         length(population) == 0 && return population
         curr = geterr(population[end].second)
-        if convergence(curr, prev)
+        if iter > 1 && convergence(curr, prev)
             params.verbose && println("SearchModels> stop by convergence error=$curr, iter=$iter (of $(params.maxiters))")
             return population
         end
