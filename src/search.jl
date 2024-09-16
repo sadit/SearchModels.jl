@@ -193,7 +193,6 @@ end
         space::AbstractSolutionSpace,
         initialpopulation=32,
         params::SearchParams=SearchParams();
-        geterr::Function=identity,
         accept_config::Function=config->true,
         inspect_population::Function=(space, params, population) -> nothing,
         sort_by_best::Function=sort_by_best,
@@ -207,10 +206,9 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
 - `errfun`: the function to minimize (receives the configuration as argument)
 - `space`: Search space definition
 - `params`: search parameters
-- `geterr` a function to compute or fetch the cost (a single floating point) on the output of `errfun`
 - `initialpopulation`: initial number of configurations to conform the population, or an initial list of configurations
 - `accept_config`: an alternative way to deny some configuration to be evaluated (receives the configuration as argument)
-- `sort_by_best`: the default minimizes the error function retrieved by geterr 
+- `sort_by_best`: the default minimizes the error function
 - `convergence`: tests current best and previous best for search convergence
 - `inspect_population`: observes the population after evaluating a beam of solutions
 - `parallel`: controls if the search is made with some kind of parallel strategy (only used for evaluation errors). Valid values are:
@@ -223,7 +221,6 @@ function search_models(
         space::AbstractSolutionSpace,
         initialpopulation=32, # it can also be a list of config seeds
         params::SearchParams=SearchParams();
-        geterr::Function=identity,
         accept_config::Function=config -> true,
         inspect_population::Function=(space, params, population) -> nothing,
         sort_by_best::Function=sort_by_best,
@@ -244,7 +241,7 @@ function search_models(
             queue_config!(accept_config, c, evalqueue, observed)
         end
     end
-    prev = 0.0
+    prev = nothing
     iter = 0
 
     population = Pair[]
@@ -262,7 +259,7 @@ function search_models(
         end
 
         length(population) == 0 && return population
-        curr = geterr(population[end].second)
+        curr = population[end]
         if iter > 1 && convergence(curr, prev)
             params.verbose && println("SearchModels> stop by convergence error=$curr, iter=$iter (of $(params.maxiters))")
             return population
