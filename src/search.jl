@@ -180,11 +180,6 @@ end
 
 function sort_by_best(space::AbstractSolutionSpace, params::SearchParams, population)
     sort!(population, by=last)
-    if params.maxpopulation < length(population)
-        resize!(population, params.maxpopulation)
-    end
-
-    population
 end
 
 """
@@ -251,8 +246,13 @@ function search_models(
     while iter <= params.maxiters
         iter += 1
         population = evaluate_queue(errfun, evalqueue, population, parallel, tmp)
+        if length(population) == 0
+            @warn "the (space, params) tuple produces empty populations"
+            return population
+        end
         inspect_population(space, params, population)
         population = sort_by_best(space, params, population)
+        params.maxpopulation < length(population) && resize!(population, params.maxpopulation)
         if iter >= params.maxiters
             params.verbose && println("SearchModels> reached maximum number of iterations $(params.maxiters)")
             return population
@@ -285,5 +285,7 @@ function search_models(
         params.verbose && println(stderr, "SearchModels iteration $iter> population: $(length(population)), bsize: $(params.bsize), queue: $(length(evalqueue)), observed: $(length(observed)), best-error: $(best_error) worst-error: $(worst_error)")
     end
 
-    sort_by_best(space, params, population)
+    population = sort_by_best(space, params, population)
+    params.maxpopulation < length(population) && resize!(population, params.maxpopulation)
+    population 
 end
