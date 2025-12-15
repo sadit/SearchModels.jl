@@ -1,7 +1,7 @@
 # This file is a part of SearchModels.jl
 
 export AbstractSolutionSpace, search_models, SearchParams, rand, combine_select, combine, mutate
-using Distributed, Random, StatsBase, Parameters
+using Distributed, Random, StatsBase
 
 abstract type AbstractSolutionSpace end
 ## NOTE: all configuratons must define hash, and isequal
@@ -11,13 +11,13 @@ abstract type AbstractSolutionSpace end
 
 Config type identifier, it may or not be a type
 """
-config_type(::T) where T = Symbol(Base.typename(T))
+config_type(::T) where {T} = Symbol(Base.typename(T))
 
 #function rand(space::AbstractSolutionSpace) end
 #function combine(a, b) end
 
 """
-    rand(space::AbstractSolutionSpace)
+    rand(rng, space::AbstractSolutionSpace)
 
 Creates a random configuration sampling the given space
 """
@@ -67,7 +67,7 @@ Combines `a` configuration with some compatible configuation in the given list o
 The `a` config is always at the end of `L` and also `L` is always shuffled.
 If you are in doubt, use the higher level interface `combine(c1, c2)`.
 """
-function combine_select(a::T, L::AbstractVector) where T
+function combine_select(a::T, L::AbstractVector) where {T}
     # L is a vector of pairs config => score
     # L should be shuffled before combining
     combine(a, compatible_config(a, L))
@@ -105,7 +105,7 @@ function evaluate_queue(errfun::Function, evalqueue, population, parallel, tmp)
                 end
             end
         end
-        
+
         empty!(evalqueue)
         return population
     end
@@ -169,7 +169,7 @@ reates a mutable list of search parameters, it can be changed online via `inspec
 - `verbose`: controls if the verbosity of the search iterations
 
 """
-@with_kw mutable struct SearchParams
+@kwdef mutable struct SearchParams
     maxpopulation::Int = 16
     bsize::Int = 8
     mutbsize::Int = 8
@@ -192,7 +192,8 @@ end
         inspect_population::Function=(space, params, population) -> nothing,
         sort_by_best::Function=sort_by_best,
         convergence::Function=(curr, prev) -> abs(last(curr), last(prev)) < 0.001,
-        parallel=:none, # :none, :threads, :distributed
+        parallel=:threads, # :none, :threads, :distributed
+        rng=Random.default_rng(),
     )
 
 Explores the search space trying to minimize the given error function. The procedure consists on an iterative stochastic method
@@ -210,18 +211,20 @@ it selects at most `maxpopulation` configurations at any iteration (best ones).
   - `:none`: there is no parallelization, the default value
   - `:threads`: evaluates error functions using threads
   - `:distributed`: evaluates error functions using a distributed environment (using the available workers)
+- `rng`: random number generator
 """
 function search_models(
-        errfun::Function,
-        space::AbstractSolutionSpace,
-        initialpopulation=32, # it can also be a list of config seeds
-        params::SearchParams=SearchParams();
-        accept_config::Function=config -> true,
-        inspect_population::Function=(space, params, population) -> nothing,
-        sort_by_best::Function=sort_by_best,
-        convergence::Function=(curr, prev) -> abs(last(curr) - last(prev)) < 1e-7,
-        parallel=:none # :none, :threads, :distributed
-    )
+    errfun::Function,
+    space::AbstractSolutionSpace,
+    initialpopulation=32, # it can also be a list of config seeds
+    params::SearchParams=SearchParams();
+    accept_config::Function=config -> true,
+    inspect_population::Function=(space, params, population) -> nothing,
+    sort_by_best::Function=sort_by_best,
+    convergence::Function=(curr, prev) -> abs(last(curr) - last(prev)) < 1e-7,
+    parallel=:threads, # :none, :threads, :distributed
+    rng=Random.default_rng()
+)
 
     ConfigType = eltype(space)
     evalqueue = ConfigType[]
@@ -229,7 +232,7 @@ function search_models(
 
     if initialpopulation isa Integer
         for i in 1:initialpopulation
-            queue_config!(accept_config, rand(space), evalqueue, observed)
+            queue_config!(accept_config, rand(rng, space), evalqueue, observed)
         end
     else
         for c in initialpopulation
@@ -270,13 +273,13 @@ function search_models(
         best_error, worst_error = population[1].second, population[end].second ## the top configurations will be shuffled
         L = @view population[1:min(params.bsize, length(population))]
         for i in 1:params.mutbsize
-            conf = mutate(space, rand(L).first, iter)
+            conf = mutate(space, rand(rng, L).first, iter)
             queue_config!(accept_config, conf, evalqueue, observed)
         end
 
         for i in 1:params.crossbsize
             shuffle!(L) # the way this procedure is designed is to support heterogeneous options
-            i = rand(1:length(L))
+            i = rand(rng, 1:length(L))
             L[end], L[i] = L[end], L[i]
             conf = combine_select(L[end].first, L)
             queue_config!(accept_config, conf, evalqueue, observed)
@@ -287,5 +290,5 @@ function search_models(
 
     population = sort_by_best(space, params, population)
     params.maxpopulation < length(population) && resize!(population, params.maxpopulation)
-    population 
+    population
 end

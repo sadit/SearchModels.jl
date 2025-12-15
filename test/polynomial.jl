@@ -2,7 +2,7 @@
 
 using Test
 
-using SearchModels
+using SearchModels, Random
 import SearchModels: combine, mutate, config_type
 
 struct PolyModelSpace <: AbstractSolutionSpace
@@ -13,7 +13,7 @@ const PolyModel = Vector{Float64}
 
 config_type(c::PolyModel) = length(c)
 Base.eltype(::PolyModelSpace) = PolyModel
-Base.rand(space::PolyModelSpace) = randn(rand(space.degree) + 1)
+Base.rand(rng::AbstractRNG, space::PolyModelSpace) = randn(rng, rand(rng, space.degree) + 1)
 
 function combine(a::PolyModel, b::PolyModel)
     [(a[i] + b[i]) / 2.0 for i in eachindex(a)]
@@ -28,7 +28,7 @@ function poly(coeff, x)::Float64
     s = coeff[1]
     @inbounds @simd for i in 2:length(coeff)
         m = coeff[i]
-        s += coeff[i] * x^(i-1)
+        s += coeff[i] * x^(i - 1)
     end
 
     s
@@ -45,12 +45,12 @@ end
 
     space = PolyModelSpace(2:5)
     B = search_models(space, 300, SearchParams(
-            bsize=64,
-            mutbsize=32,
-            crossbsize=32,
-            maxiters=100,
-            verbose=true
-        )
+        bsize=64,
+        mutbsize=32,
+        crossbsize=32,
+        maxiters=100,
+        verbose=true
+    )
     ) do c
         s = zero(Float64)
         @inbounds @simd for i in eachindex(X)

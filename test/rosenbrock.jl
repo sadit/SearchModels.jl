@@ -2,7 +2,7 @@
 
 using Test
 
-using SearchModels
+using SearchModels, Random
 import SearchModels: combine, mutate
 
 mutable struct RosenbrockSpace <: AbstractSolutionSpace
@@ -12,19 +12,19 @@ end
 
 RosenbrockSpace() = RosenbrockSpace(-3.0:0.1:10.0, -10.0:0.1:3.0)
 
-const RoseParams = Tuple{Float64, Float64}
+const RoseParams = Tuple{Float64,Float64}
 
 Base.eltype(::RosenbrockSpace) = RoseParams
 
-function Base.rand(space::RosenbrockSpace)
-    rand(space.xrange), rand(space.yrange)
+function Base.rand(rng::AbstractRNG, space::RosenbrockSpace)
+    rand(rng, space.xrange), rand(rng, space.yrange)
 end
 
 function combine(a::RoseParams, b::RoseParams)
     if rand() < 0.5
         a[1], b[2]
     else
-        (a[1] + b[1])/2, (a[2] + b[2])/2
+        (a[1] + b[1]) / 2, (a[2] + b[2]) / 2
     end
 end
 
@@ -37,7 +37,7 @@ function mutate(space::RosenbrockSpace, c::RoseParams, iter)
 end
 
 function rosenbrock(x)::Float64
-    (1-x[1])^2+100*(x[2]-x[1]^2)^2
+    (1 - x[1])^2 + 100 * (x[2] - x[1]^2)^2
 end
 
 @testset "SearchModels.jl" begin
