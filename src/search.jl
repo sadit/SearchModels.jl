@@ -13,7 +13,6 @@ Config type identifier, it may or not be a type
 """
 config_type(::T) where {T} = Symbol(Base.typename(T))
 
-#function rand(space::AbstractSolutionSpace) end
 #function combine(a, b) end
 
 """
@@ -21,6 +20,7 @@ config_type(::T) where {T} = Symbol(Base.typename(T))
 
 Creates a random configuration sampling the given space
 """
+#function rand(rng, space::AbstractSolutionSpace) end
 
 """
     compatible_space(space::AbstractVector, c)

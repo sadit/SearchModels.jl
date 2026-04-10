@@ -54,4 +54,4 @@ function change(rng::AbstractRNG, x, choices; p1=0.5)
     rand(rng) < p1 ? rand(rng, choices) : x
 end
 
-change(x, choices; kwargs) = change(Random.default_rng(), x, choices; kwargs...)
+change(x, choices; kwargs...) = change(Random.default_rng(), x, choices; kwargs...)
